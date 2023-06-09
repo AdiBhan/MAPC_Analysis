@@ -1,13 +1,11 @@
 import requests
 import os
 from dotenv import load_dotenv
-import time
-
-
+import pymongo as pm
 #####################################################################################
-# Utilities.py
+# FetchData.py
 # Author: Adi Bhan
-# This script will pull all vendors from UpGuard API and generate important analytics
+# This script will pull all data from vendors using UpGuard API and store it locally
 
 ###############################################################################################################
 
@@ -17,6 +15,8 @@ class FetchData:
             Loads environment variables from .env file to be used for UpGuard API"""
         
         load_dotenv()  # take environment variables from .env.
+        
+        # UpGuard API settings
         self.API_KEY = os.getenv("UPGUARD_API_KEY")
         self.BASE_URL = os.getenv("UPGUARD_BASE_URL")
         self.EMAIL = os.getenv("UPGUARD_EMAIL")
@@ -24,12 +24,28 @@ class FetchData:
         self.VENDOR_URL = "https://cyber-risk.upguard.com/api/public/vendor"
         self.VULNERABILITY_URL = "https://cyber-risk.upguard.com/api/public/vulnerabilities/vendor"
         
-
+        # Directory settings
+        self.graph_dir = os.path.join(os.getcwd(), "MAPC", "graphs")
+        
+        # MongoDB settings
+        self.MongoDB_URI = os.getenv("MONGO_URI")
+     
+        # Initalize connection to MongoDB for storing data
+    
+        self.client = pm.MongoClient(self.MongoDB_URI)
+        
+        if self.client.server_info():
+            print("Connected to MongoDB successfully")
+        else: 
+            print("Failed to connect to MongoDB")
+        
+        self.DB = self.client["Cluster0"]
+        self.collection_scores = self.DB["Municipality_Scores"]
+        self.collection_vulnerabilities = self.DB["Municipality_Vulnerabilities"]
+        
         self.headers = {
             "Authorization": self.API_KEY
         }
-       
-
         # Dictionary of all municipalities and their respective domains used for querying UpGuard API
         self.muncipalities = {
             "Maynard": "townofmaynard-ma.gov",
@@ -72,13 +88,11 @@ class FetchData:
             "Marlborough": "marlborough-ma.gov",
         }
         
-        self.VULNERABILITY_TABLE = self.parse_vulnerabilities()
-    
-  
+        self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
+    def __parse_vulnerabilities(self) -> list:
         
-    def parse_vulnerabilities(self) -> list:
-        
-        """ parse_and_store_vulnerabilities method parses all vulnerabilities from UpGuard API and stores them in a csv file"""
+        """ parse_and_store_vulnerabilities method parses all vulnerabilities from UpGuard API and stores them in a csv file
+            **Internal method ** """
   
         vulnerability_table = []
         
@@ -94,10 +108,14 @@ class FetchData:
             municipality_vulnerabilities = {municipality: [] }
             vulnerability_table.append(municipality_vulnerabilities)
 
-            for i in range(0, len(response.json()["vulnerabilities"])-1):
-                vulnerability = response.json()["vulnerabilities"][i]['cve']['description']
-                municipality_vulnerabilities[municipality].append(vulnerability)
-                        
+            if (response.status_code == 200):
+                for i in range(0, len(response.json()["vulnerabilities"])-1):
+                    vulnerability = response.json()["vulnerabilities"][i]['cve']['description']
+                    municipality_vulnerabilities[municipality].append(vulnerability)
+            else:
+                assert response.status_code == 200, f"\n | Error: {response.status_code} City: {municipality} URL: {self.muncipalities[municipality]}| \n"
+                
+            self.__send_to_mongodb(municipality_vulnerabilities, municipality, self.collection_vulnerabilities)      
                         
         return vulnerability_table
                
@@ -120,26 +138,65 @@ class FetchData:
                 assert response.status_code == 200, f"\n | Error: {response.status_code} City: {municipality} URL: {self.muncipalities[municipality]}| \n"
         print(f"Success! All muncipalities endpoints work properly. Total number of municipalities: {len(self.muncipalities)}")
 
-    def store_vendors_in_csv(self) -> None:
+    def vendor_scores(self) -> None:
         
-        """ store_in_csv method storess all municipality data in a csv file locally """
+        """ get_vendor_scores method pulls all vendor scores from UpGuard API and stores them locally in a csv file and MongoDB """
 
         for municipality in self.muncipalities:
             params = {
                 "hostname": self.muncipalities[municipality]
             }
             response = requests.get(self.VENDOR_URL, headers=self.headers, params=params)
+            
+            municipality_data = response.json()
+            
+            
             if (response.status_code == 200):
-                cur_dir = os.getcwd() + "/Data/"
-                with open(cur_dir + "Muncipalities.csv", "a") as file:
-                    file.write(response.text)
+                
+                # store data locally in Muncipalities.csv file
+                with open(self.graph_dir + "Muncipalities.csv", "a") as file:
+                    file.write(str(municipality_data))
                     file.write("\n")
             else:
               assert response.status_code == 200, f"\n | Error: {response.status_code} City: {municipality} URL: {self.muncipalities[municipality]}| \n"
+            
+
+            self.__send_to_mongodb(municipality_data, municipality, self.collection_scores)
+
+        
+            
         print("Success! All muncipalities are stored in Data.csv file")
 
+    def test_endpoints(self) -> None:
+        params = {
+            "hostname": "townofmaynard-ma.gov",
+            "primary_hostname": "townofmaynard-ma.gov",
+        }
+        URL = "https://cyber-risk.upguard.com/api/public/risks/vendors"
+        
+        response = requests.get(URL, headers=self.headers, params=params)
+        
+    def __send_to_mongodb(self, data, muncipality, cluster) -> None:
+        
+        """ send_to_mongodb method sends data to MongoDB server. 
+            Internal method used by vendor_scores method"""
+    
+        try:
+            # Check if the municipality already exists in the MongoDB cluster
+            does_document_exist = cluster.find_one({"name": muncipality})
+            
+            if (not does_document_exist):
+                # Structure data in the way MongoDB expects, with 'municipality' as the key
+                data_to_insert = {"name": muncipality, "data": data[muncipality]}
+                cluster.insert_one(data_to_insert)
+                print(f"Successfully inserted {muncipality} into MongoDB | {cluster}")
+            else:
+                print(f"Document already exists for {muncipality} | {cluster}")
+                
+        except Exception as e:
+            print(f"Error with inserting into MongoDB: {e}")
 
+        
+        
 if __name__ == "__main__":
     utilities = FetchData()
-   
-    

@@ -1,9 +1,7 @@
-runtest:
-	gcc -o test test.c
-	./test
-runconsole:
-	python3 console.py
-analysis:
-	python3 Analysis.py
-utility:
-	python3 Utilities.py
+# Created for development purposes
+main:
+	cd Scripts 
+	python3 Main.py
+fetch:
+	cd Scripts
+	python3 FetchData.py
