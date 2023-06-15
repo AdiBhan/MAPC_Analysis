@@ -1,11 +1,15 @@
 import json
-import textwrap
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
+from dotenv import load_dotenv
+import textwrap
 from FetchData import FetchData
+import math
+import pymongo as pm
+import datetime
 
 #####################################################################################
 # FetchData.py
@@ -13,7 +17,7 @@ from FetchData import FetchData
 # This script will analyze the data from the Data.csv file and other sources to create graphs of the data
 ###############################################################################################################
 
-class GraphGenerator:
+class GraphGenerator(FetchData):
     
     """ GraphGenerator class creates graphs of the data"""
     
@@ -22,7 +26,12 @@ class GraphGenerator:
         self.name_to_emailsecurity_map = {}
         self.name_to_websecurity_map = {}
         self.name_to_networksecurity_map = {}
+        self.date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        
+        load_dotenv()  # take environment variables from .env.
+        
+        super().__init__()
         
         ## Directory settings
         self.graph_dir = os.getcwd() + "/graphs/"
@@ -34,6 +43,8 @@ class GraphGenerator:
         height = 1200 #pixels  
         self.figsize = (width / self.dpi, height / self.dpi) 
 
+
+        ## Used to initialize the data
         self.read_file()
  
         
@@ -74,6 +85,8 @@ class GraphGenerator:
         plt.tight_layout() 
        
         plt.savefig(self.graph_dir + file_name)
+        
+        self.print_message("Bar Graph")
   
     def create_stacked_bar_graph(self, score_map:dict , email_security_map:dict, web_security_map:dict, network_security_map:dict, xaxis_label:str, yaxis_label:str, file_name:str, graph_title:str)->None:
        
@@ -102,6 +115,8 @@ class GraphGenerator:
         
         plt.savefig(self.graph_dir + file_name, dpi=dpi)
         plt.show()
+        
+        self.print_message("Stacked Bar Graph")
 
 
     def sort_dictionaries(self, dict_name:dict)->dict:
@@ -120,7 +135,7 @@ class GraphGenerator:
         """Create a histogram of the data in score_map."""
 
         ScoreSeries = pd.Series(score_map.values())
-        
+       
         plt.figure(figsize=self.figsize, dpi=self.dpi)
         sns.histplot(ScoreSeries, bins=30, edgecolor='black', color='blue', kde=True, line_kws={'color': 'lightblue'})  
         plt.title(graph_title)
@@ -128,9 +143,21 @@ class GraphGenerator:
         plt.ylabel(yaxis_label)
         plt.tight_layout() 
 
+        
+        
         plt.savefig(self.graph_dir + file_name)
-        plt.show()
+        
+        
+        city_to_score_map = {}
+        cursor = self.collection_scores.find({}) 
+        for document in cursor:
+            city_to_score_map[document['name']] = document['data']['score']
+        
+        
+        self.print_message("Histogram", city_to_score_map)
 
+        
+   
     def create_challenge_frequency_graph(self, challenge_table:list, xaxis_label:str, yaxis_label:str, file_name:str, graph_title:str)->None:
         
         """create_challenge_frequency_graph method creates a graph which measures the frequency of each challenge."""
@@ -151,12 +178,12 @@ class GraphGenerator:
         frequencies = [item[1] for item in top_vulnerabilities]
 
         plt.figure(figsize=(25, 20))
-        sns.set(font_scale=1.2)
+        sns.set(font_scale=.6)
         vulnerabilities = [textwrap.fill(item[0], 40) for item in top_vulnerabilities]  
         
         # Plotting the bar chart
-        sns.barplot(x=vulnerabilities, y=frequencies, edgecolor='black', palette='Blues_d')
-        plt.xticks(rotation=90) 
+        sns.barplot(x=frequencies, y=vulnerabilities, edgecolor='black', palette='Blues_d')
+       
         plt.xlabel(xaxis_label)
         plt.ylabel(yaxis_label)
         plt.title(graph_title)
@@ -173,16 +200,40 @@ class GraphGenerator:
                 file.write(f"{key} | {value}\n")
         plt.show()
         
+        self.print_message("Challenge Frequency Graph")
 
+        
+    def print_message(self, graph, city_to_score_map = None) -> None :
+        
+        """ print_message method prints a message to the console after a graph is created
+                Serves as a helper function to create_graphs methods """
+        
+        print("--------------------------------------------------------------------")
+        print(f"{graph} graph has been succesfully created and saved to the graphs folder")
+        print(" As of date of: ", self.date)
+        print("--------------------------------------------------------------------")
+        if (graph == "Histogram"):
+            print("--------------------------------------------------------------------")
+            print("Top 15 Municipalities with the highest scores:")
+            print("Name, Score")
+            for name, score in self.sort_dictionaries(city_to_score_map).items():
+                print(f"{name}, {score}")
+            
+            print("Mean: ", np.mean(list(city_to_score_map.values())), "Median: ", np.median(list(city_to_score_map.values())), "Standard Deviation: ", np.std(list(city_to_score_map.values())))
+            print("--------------------------------------------------------------------")
+        
+            
 if __name__ == "__main__":
     Work = GraphGenerator()
     Work.create_histogram(Work.name_to_score_map, "Scores", "Frequency", "histogram.png", "Histogram of Scores across all municipalities")
-    Utility = FetchData()
-    Work.create_challenge_frequency_graph(Utility.VULNERABILITY_TABLE, "Municipalities", "Number of Vulnerabilities", "challenge_frequency_graph.png", "Most common vulnerabilities across all municipalities")
+    # Work.create_histogram(Work.name_to_score_map, "Scores", "Frequency", "histogram.png", "Histogram of Scores across all municipalities")
+    Work.create_challenge_frequency_graph(Work.VULNERABILITY_TABLE, "Municipalities", "Number of Vulnerabilities", "challenge_frequency_graph.png", "Most common vulnerabilities across all municipalities")
    
-    Work.create_graphs(Work.name_to_score_map, "Municipalities", "General Scores", "general_map.png", "Scores across all municipalities")
-    Work.create_graphs(Work.name_to_emailsecurity_map, "Municipalities", "Email Security Scores", "email_security_map.png", "Email Security Scores across all municipalities")
-    Work.create_graphs(Work.name_to_websecurity_map, "Municipalities", "Web Security Scores", "web_security_map.png", "Web Security Scores across all municipalities")
-    Work.create_graphs(Work.name_to_networksecurity_map, "Municipalities", "Network Security Scores", "network_security_map.png", "Network Security Scores across all municipalities")
-    Work.create_stacked_bar_graph(Work.name_to_score_map, Work.name_to_emailsecurity_map, Work.name_to_websecurity_map, Work.name_to_networksecurity_map, "Municipalities", "Scores", "stacked_bar_graph.png", "Stacked Bar Graph of all categories of vulnerabilities")
+    # Work.create_graphs(Work.name_to_score_map, "Municipalities", "General Scores", "general_map.png", "Scores across all municipalities")
+    # Work.create_graphs(Work.name_to_emailsecurity_map, "Municipalities", "Email Security Scores", "email_security_map.png", "Email Security Scores across all municipalities")
+    # Work.create_graphs(Work.name_to_websecurity_map, "Municipalities", "Web Security Scores", "web_security_map.png", "Web Security Scores across all municipalities")
+    # Work.create_graphs(Work.name_to_networksecurity_map, "Municipalities", "Network Security Scores", "network_security_map.png", "Network Security Scores across all municipalities")
+    # Work.create_stacked_bar_graph(Work.name_to_score_map, Work.name_to_emailsecurity_map, Work.name_to_websecurity_map, Work.name_to_networksecurity_map, "Municipalities", "Scores", "stacked_bar_graph.png", "Stacked Bar Graph of all categories of vulnerabilities")
+    
+    
     
