@@ -7,7 +7,6 @@ import seaborn as sns
 from dotenv import load_dotenv
 import textwrap
 from FetchData import FetchData
-import math
 import pymongo as pm
 import datetime
 
@@ -31,11 +30,20 @@ class GraphGenerator(FetchData):
         
         load_dotenv()  # take environment variables from .env.
         
+        # Load Parent Class Constructor
         super().__init__()
         
         ## Directory settings
         self.graph_dir = os.getcwd() + "/graphs/"
         self.data_dir = os.getcwd() + "/Data/"
+        
+        ## Creating the graphs folder if it does not exist
+        if not os.path.exists(self.graph_dir):
+            os.makedirs(self.graph_dir)
+            print("Created graphs folder")
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+            print("Created data folder")
 
         ## Graph settings
         self.dpi = 100.0
@@ -46,8 +54,7 @@ class GraphGenerator(FetchData):
 
         ## Used to initialize the data
         self.read_file()
- 
-        
+               
     def read_file(self)->None:
         
         """ read_file method reads the Data.csv file and stores the data in dictionaries.
@@ -227,7 +234,9 @@ if __name__ == "__main__":
     Work = GraphGenerator()
     Work.create_histogram(Work.name_to_score_map, "Scores", "Frequency", "histogram.png", "Histogram of Scores across all municipalities")
     # Work.create_histogram(Work.name_to_score_map, "Scores", "Frequency", "histogram.png", "Histogram of Scores across all municipalities")
-    Work.create_challenge_frequency_graph(Work.VULNERABILITY_TABLE, "Municipalities", "Number of Vulnerabilities", "challenge_frequency_graph.png", "Most common vulnerabilities across all municipalities")
+    Utilities = FetchData()
+    
+    Work.create_challenge_frequency_graph(Utilities.VULNERABILITY_TABLE, "Municipalities", "Number of Vulnerabilities", "challenge_frequency_graph.png", "Most common vulnerabilities across all municipalities")
    
     # Work.create_graphs(Work.name_to_score_map, "Municipalities", "General Scores", "general_map.png", "Scores across all municipalities")
     # Work.create_graphs(Work.name_to_emailsecurity_map, "Municipalities", "Email Security Scores", "email_security_map.png", "Email Security Scores across all municipalities")

@@ -144,14 +144,14 @@ class FetchData:
 
     def test_endpoints(self) -> None:
         params = {
-            "hostname": "townofmaynard-ma.gov",
-            "primary_hostname": "townofmaynard-ma.gov",
+            "hostname": "danversma.gov",
+            "primary_hostname": "danversma.gov",
         }
         URL = "https://cyber-risk.upguard.com/api/public/risks/vendors"
         
         response = requests.get(URL, headers=self.headers, params=params)
         
-        print(response.json())
+        print(response.json()['risks'])
         
     def __send_to_mongodb(self, data, muncipality, cluster) -> None:
         
@@ -236,6 +236,4 @@ class FetchData:
         
 if __name__ == "__main__":
     utilities = FetchData()
-    utilities.vendor_scores()
-    
-    
+    utilities.test_endpoints()
