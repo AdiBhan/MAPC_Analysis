@@ -12,7 +12,7 @@ from reportlab.lib import colors
 #####################################################################################
 # Remediation.py
 # Author: Adi Bhan
-# This script is used to generate PDFS of issues found by the scan.
+# This script is used to generate PDFS of vunerabilities found by UpGuard and remediation steps for each NERAC Region.
 ###############################################################################################################
 
 # Custom HRFlowable class to change the color of the line.

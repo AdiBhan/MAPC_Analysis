@@ -1,34 +1,35 @@
-def shift(s, shifts):
-    s = list(s)
-    
-    for i in range(len(s)):
-        # sum up all shifts from i to the end of the list
-        total_shift = sum(shifts[i:])
-        print(ord(s[i]), i , " " , str((ord(s[i]) - ord('a') + total_shift) % 26))
-        print(chr(17))
-        
-        numerical_difference_btwn_char_and_original = ord(s[i]) - ord('a') # with this we can get the original char
-        
-        new_char = numerical_difference_btwn_char_and_original + total_shift # with this we can get the new char
-        
-        new_char = new_char % 26 # with this we can get the new char in the range of 0-25
-        
-        new_char = new_char + ord('a') # with this we can get the new char in the range of a-z (97-122)
-        
-        new_char = chr(new_char) # with this we can get the new char in the range of a-z (97-122)
-        
-        s[i] = new_char # we update the char
-        
-    return "".join(s)
-        
-        
-        
-        
-        
-        # calculate new ASCII value and ensure it falls within the range of lowercase letters
-        new_ascii_val = ord('a') + (ord(s[i]) - ord('a') + total_shift) % 26
-        # update character
-        s[i] = chr(new_ascii_val)
-    return "".join(s)
+def max_sum(arr, window_size):
+    array_size = len(arr)
+    # n must be greater than k
+    if array_size <= window_size:
+        print("Invalid operation")
+        return -1
+    print(window_size, " size of current window")
 
-print(shift("abc", [3,5,9]))
+    # Compute sum of first window of size k
+    window_sum = sum([arr[i] for i in range(window_size)])
+
+    print("First window sum is", window_sum)
+    max_sum = window_sum
+
+    # Compute sums of remaining windows by
+    # removing first element of previous
+    # window and adding last element of
+    # current window.
+    for i in range(array_size - window_size):
+        window_sum = window_sum - arr[i] + arr[i + window_size]
+        max_sum = max(window_sum, max_sum)
+        print("Current window sum is", window_sum, "Max sum is", max_sum)
+
+    return max_sum
+
+
+# Driver code
+arr = [2, 6, 9, 2, 1, 8, 5, 6, 3]
+k = 3
+print(max_sum(arr, k))
+
+a = {'a': 1, 'b': 2}
+
+a['a'] += 3
+print(a)
