@@ -1,7 +1,11 @@
+
 import os
 import requests
 from dotenv import load_dotenv
 import pymongo as pm
+import openpyxl
+from geopy.geocoders import Nominatim
+
 #####################################################################################
 # FetchData.py
 # Author: Adi Bhan
@@ -25,8 +29,11 @@ class FetchData:
         self.VENDOR_URL = "https://cyber-risk.upguard.com/api/public/vendor"
         self.VULNERABILITY_URL = "https://cyber-risk.upguard.com/api/public/vulnerabilities/vendor"
 
+        self.geolocator = Nominatim(user_agent="MAPC_DATA")
+
         # Directory settings
-        self.graph_dir = os.path.join(os.getcwd(), "graphs")
+
+        self.graph_dir = os.path.join(os.getcwd(), "data")
 
         # MongoDB settings
         self.MongoDB_URI = os.getenv("MONGO_URI")
@@ -70,6 +77,23 @@ class FetchData:
             "Salisbury": "salisburyma.gov",
             "Saugus": "saugus-ma.gov",
             "Sherborn": "sherbornma.org",
+            "Shirley": "shirley-ma.gov",
+            "Stoneham": "stoneham-ma.gov",
+            "Stow": "stow-ma.gov",
+            "Sudbury": "sudbury.ma.us",
+            "Swampscott": "swampscottma.gov",
+            "Tewksbury": "tewksbury-ma.gov",
+            "Topsfield": "topsfield-ma.gov",
+            "Townsend": "townsend.ma.us",
+            "Tyngsborough": "tyngsboroughma.gov",
+            "Wakefield": "wakefield.ma.us",
+            "WaterTown": "watertown-ma.gov",
+            "Wayland": "wayland.ma.us",
+            "Westford": "westfordma.gov",
+            "Weston": "weston.org",
+            "Wilmington": "wilmingtonma.gov",
+            "Winchester": "winchester.us",
+            "Woburn": "cityofwoburn.com",
             "Georgetown": "georgetownma.gov",
             "Gloucester": "gloucester-ma.gov",
             "Groveland": "grovelandma.com",
@@ -80,16 +104,36 @@ class FetchData:
             "Lawrence": "cityoflawrence.com",
             "Lexington": "lexingtonma.gov",
             "Littleton": "littletonma.org",
-            "Lowell": "lowellma.gov",
             "Lynn": "lynnma.gov",
             "Lynnfield": "town.lynnfield.ma.us",
             "Malden": "cityofmalden.org",
             "Manchester": "manchester.ma.us",
             "Marblehead": "marblehead.org",
             "Marlborough": "marlborough-ma.gov",
+            "Acton": "acton-ma.gov",
+            "Amesbury": "amesburyma.gov",
+            "Andover": "andoverma.gov",
+            "Arlington": "arlingtonma.gov",
+            "Ayer": "ayer.ma.us",
+            "Bedford": "bedfordma.gov",
+            "Belmont": "belmont-ma.gov",
+            "Billercia": "town.billerica.ma.us",
+            "Beverly": "beverlyma.gov",
+            "Boxborough": "boxborough-ma.gov",
+            "Burlington": "burlington.org",
+            "Chelmsford": "chelmsfordma.gov",
+            "Concord": "concordma.gov",
+            "Danvers": "danversma.gov",
+            "Dracut": "dracutma.gov",
+            "Dunstable": "dunstable-ma.gov",
+            "Essex": "essexma.org",
+            "Frameingham": "framinghamma.gov",
+            "Holliston": "townofholliston.us",
+            "Hopkinton": "hopkintonma.gov",
+            "Lowell": "lowellma.gov",
         }
 
-        # self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
+        self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
 
     def test_vendors(self) -> None:
         """ test_vendors used for testing purposes to make sure Vendor endpoint can be reached from UpGuard API** 
@@ -123,6 +167,17 @@ class FetchData:
 
             municipality_data = response.json()
 
+            # get coordinates for each municipality, and adding to municipality_data dictionary
+            location = self.geolocator.geocode(municipality)
+            if location is not None:
+                municipality_data["longitude"], municipality_data["latitude"] = location.longitude, location.latitude
+                municipality_data["location"] = [
+                    location.longitude, location.latitude]
+                print("Success! Coordinates found",
+                      municipality_data["longitude"], municipality_data["latitude"])
+            else:
+                print(f'Failed to get coordinates for {municipality}')
+
             if (response.status_code == 200):
 
                 # store data locally in Muncipalities.csv file
@@ -134,6 +189,7 @@ class FetchData:
             else:
                 assert response.status_code == 200, f"\n | Error: {response.status_code} City: {municipality} URL: {self.muncipalities[municipality]}| \n"
 
+            # finally, send municipality data to MongoDB for storage
             self.__send_to_mongodb(
                 municipality_data, municipality, self.collection_scores)
 
@@ -172,9 +228,9 @@ class FetchData:
 
                 cluster.insert_one(data_to_insert)
                 print(f"Successfully inserted {muncipality} into MongoDB ")
-            else:
+            # else:
 
-                print(f"Document already exists for {muncipality} ")
+                # print(f"Document already exists for {muncipality} ")
 
         except Exception as e:
             print(f"Error with inserting into MongoDB: {e}")
@@ -230,7 +286,12 @@ class FetchData:
         except Exception as e:
             print(f"Error with clearing MongoDB: {e}")
 
+    def save_to_exel(self) -> None:
+        # Function to save data to excel file using openpyxl
+
+        pass
+
 
 if __name__ == "__main__":
     utilities = FetchData()
-    utilities.test_endpoints()
+    utilities.vendor_scores()

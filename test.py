@@ -1,35 +1,17 @@
-def max_sum(arr, window_size):
-    array_size = len(arr)
-    # n must be greater than k
-    if array_size <= window_size:
-        print("Invalid operation")
-        return -1
-    print(window_size, " size of current window")
+import numpy as np
 
-    # Compute sum of first window of size k
-    window_sum = sum([arr[i] for i in range(window_size)])
+# transition matrix
+P = np.array([[0.8, 0.1, 0.1],
+              [0.1, 0.6, 0.3],
+              [0.5, 0.4, 0.1]])
 
-    print("First window sum is", window_sum)
-    max_sum = window_sum
+# initial distribution
+pi = np.array([1/3, 1/3, 1/3])
 
-    # Compute sums of remaining windows by
-    # removing first element of previous
-    # window and adding last element of
-    # current window.
-    for i in range(array_size - window_size):
-        window_sum = window_sum - arr[i] + arr[i + window_size]
-        max_sum = max(window_sum, max_sum)
-        print("Current window sum is", window_sum, "Max sum is", max_sum)
+while True:
+    pi_next = np.dot(pi, P)
+    if np.allclose(pi, pi_next):
+        break
+    pi = pi_next
 
-    return max_sum
-
-
-# Driver code
-arr = [2, 6, 9, 2, 1, 8, 5, 6, 3]
-k = 3
-print(max_sum(arr, k))
-
-a = {'a': 1, 'b': 2}
-
-a['a'] += 3
-print(a)
+print(pi)

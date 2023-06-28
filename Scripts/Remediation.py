@@ -50,7 +50,7 @@ class Remediation(FD):
         self.issues = []
         self.why_is_it_risky = []
 
-        # Top Risky Issues (based on Analysis)
+        # Top Risky Issues (based on Manual Analysis)
 
         self.top_risks = [
             'CAA not enabled',
