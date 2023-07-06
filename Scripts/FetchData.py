@@ -28,7 +28,7 @@ class FetchData:
         self.PASSWORD = os.getenv("UPGUARD_PASSWORD")
         self.VENDOR_URL = "https://cyber-risk.upguard.com/api/public/vendor"
         self.VULNERABILITY_URL = "https://cyber-risk.upguard.com/api/public/vulnerabilities/vendor"
-
+        self.RISKS_URL = "https://cyber-risk.upguard.com/api/public/risks"
         self.geolocator = Nominatim(user_agent="MAPC_DATA")
 
         # Directory settings
@@ -50,12 +50,14 @@ class FetchData:
         self.DB = self.client["Cluster0"]
         self.collection_scores = self.DB["Municipality_Scores"]
         self.collection_vulnerabilities = self.DB["Municipality_Vulnerabilities"]
+        self.collection_risks = self.DB["Muncipality_Risks"]
 
         self.headers = {
             "Authorization": self.API_KEY
         }
         # Dictionary of all municipalities and their respective domains used for querying UpGuard API
         self.muncipalities = {
+
             "Maynard": "townofmaynard-ma.gov",
             "Medford": "medfordma.org",
             "Melrose": "cityofmelrose.org",
@@ -132,8 +134,7 @@ class FetchData:
             "Hopkinton": "hopkintonma.gov",
             "Lowell": "lowellma.gov",
         }
-
-        self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
+        # self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
 
     def test_vendors(self) -> None:
         """ test_vendors used for testing purposes to make sure Vendor endpoint can be reached from UpGuard API** 
@@ -157,7 +158,7 @@ class FetchData:
 
     def vendor_scores(self) -> None:
         """ get_vendor_scores method pulls all vendor scores from UpGuard API and stores them locally in a csv file and MongoDB under collection: Municipality_Scores"""
-
+        locations = []
         for municipality in self.muncipalities:
             params = {
                 "hostname": self.muncipalities[municipality]
@@ -168,7 +169,11 @@ class FetchData:
             municipality_data = response.json()
 
             # get coordinates for each municipality, and adding to municipality_data dictionary
-            location = self.geolocator.geocode(municipality)
+            location = self.geolocator.geocode(
+                municipality + ", Massachusetts, USA")
+            print(municipality, location)
+
+            locations.append(location)
             if location is not None:
                 municipality_data["longitude"], municipality_data["latitude"] = location.longitude, location.latitude
                 municipality_data["location"] = [
@@ -204,7 +209,7 @@ class FetchData:
 
         response = requests.get(URL, headers=self.headers, params=params)
 
-        print(response.json()['risks'])
+        print(response.json())
 
     def __send_to_mongodb(self, data, muncipality, cluster) -> None:
         """ send_to_mongodb method sends data to MongoDB server. 
@@ -252,14 +257,18 @@ class FetchData:
                 self.VULNERABILITY_URL, headers=self.headers, params=params)
 
             municipality_vulnerabilities = {municipality: []}
-            vulnerability_table.append(municipality_vulnerabilities)
 
             if (response.status_code == 200):
                 for i in range(0, len(response.json()["vulnerabilities"])-1):
+                    severity = response.json(
+                    )["vulnerabilities"][i]['cve']['severity']
                     vulnerability = response.json(
                     )["vulnerabilities"][i]['cve']['description']
-                    municipality_vulnerabilities[municipality].append(
-                        vulnerability)
+
+                    municipality_vulnerabilities[municipality].append({
+
+                        "Vulnerability": vulnerability,
+                        "Severity": severity},)
             else:
                 assert response.status_code == 200, f"\n | Error: {response.status_code} City: {municipality} URL: {self.muncipalities[municipality]}| \n"
 
@@ -286,12 +295,61 @@ class FetchData:
         except Exception as e:
             print(f"Error with clearing MongoDB: {e}")
 
+    def risk_timeseries(self) -> None:
+        """Method to get Risk, Date, Severity, and Category/Type Data from UpGuard API and store it in MongoDB under collection: Municipality_Risk to be used for time series graphing (Risk over 2023)
+            URL: https://cyber-risk.upguard.com/api/public/risk"""
+        total_risk = []
+        for city in self.muncipalities:
+            self.params = {
+                "hostname": self.muncipalities[city],
+                "vendor_primary_hostname": self.muncipalities[city],
+                "ip": self.muncipalities[city],
+                "primary_hostname": self.muncipalities[city]
+
+            }
+            response = requests.get(
+                self.RISKS_URL, headers=self.headers, params=self.params)
+
+            # Parsing out the Risk, Date, Severity, and Category/Type Data from the API for each city and storing it in a list of dictionaries
+
+            for i in range(0, len(response.json()['risks'])-1):
+
+                data = response.json()['risks'][i]
+
+                # If any of the data is missing, skip it
+                if (not data.get("riskSubtype", None) or not data.get("severity", None) or not data.get("category", None) or not data.get("description", None)):
+                    continue
+                else:
+                    # If the data is from 2021, skip it (we only want data from 2023
+                    if (data["firstDetected"].split("-")[0] == "2021"):
+                        continue
+                    # Data is in format: "YEAR_MONTH_DAY" -> "MONTH_DAY_YEAR"
+                    date = data["firstDetected"].split(
+                        "-")[1] + "-" + data["firstDetected"].split(
+                        "-")[2][0:2] + "-" + data["firstDetected"].split("-")[0]
+
+                    severity = data["severity"]
+                    category = data["category"]
+
+                    risk = data["risk"]
+                    total_risk.append({"Risk": risk, "Date": date,
+                                      "Severity": severity, "Category": category,
+                                       "Name": city})
+
+        # Send data to MongoDB
+        self.collection_risks.insert_many(total_risk)
+        print(
+            f"\nSuccessfully inserted data into MongoDB  {self.collection_risks}\n")
+
     def save_to_exel(self) -> None:
+
         # Function to save data to excel file using openpyxl
 
         pass
 
 
 if __name__ == "__main__":
+
     utilities = FetchData()
-    utilities.vendor_scores()
+    utilities.clear_db(utilities.collection_risks)
+    utilities.risk_timeseries()

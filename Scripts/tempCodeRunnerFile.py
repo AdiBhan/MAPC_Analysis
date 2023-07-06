@@ -1,0 +1,1 @@
+  # self.VULNERABILITY_TABLE = self.__parse_vulnerabilities()
